@@ -1,0 +1,109 @@
+---
+cluster:
+  # -- The name for this cluster.
+  # @section -- Cluster
+  name: "default"
+
+#
+# Destinations
+#
+
+# -- The list of destinations where telemetry data will be sent.
+# See the [destinations documentation](https://github.com/grafana/k8s-monitoring-helm/blob/main/charts/k8s-monitoring/docs/destinations/README.md) for more information.
+# @section -- Destinations
+destinations:
+  - name: hostedLogs
+    type: loki
+    url: http://loki.loki.svc.cluster.local:3100/loki/api/v1/push
+  - name: hostedMetrics
+    type: prometheus
+    url: http://mimir-nginx.mimir.svc.cluster.local:80/api/v1/push
+
+#
+# Features
+#
+
+# -- Cluster Monitoring enables observability and monitoring for your Kubernetes Cluster itself.
+# Requires a destination that supports metrics.
+# To see the valid options, please see the [Cluster Monitoring feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-cluster-metrics).
+# @default -- Disabled
+# @section -- Features - Cluster Metrics
+clusterMetrics:
+  # -- Enable gathering Kubernetes Cluster metrics.
+  # @section -- Features - Cluster Metrics
+  enabled: false
+
+# -- Pod logs.
+# Requires a destination that supports logs.
+# To see the valid options, please see the [Pod Logs feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-pod-logs).
+# @default -- Disabled
+# @section -- Features - Pod Logs
+podLogs:
+  # -- Enable gathering Kubernetes Pod logs.
+  # @section -- Features - Pod Logs
+  enabled: true
+
+# -- Annotation Autodiscovery enables gathering metrics from Kubernetes Pods and Services discovered by special annotations.
+# Requires a destination that supports metrics.
+# To see the valid options, please see the [Annotation Autodiscovery feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-annotation-autodiscovery).
+# @default -- Disabled
+# @section -- Features - Annotation Autodiscovery
+annotationAutodiscovery:
+  # -- Enable gathering metrics from Kubernetes Pods and Services discovered by special annotations.
+  # @section -- Features - Annotation Autodiscovery
+  enabled: true
+
+# -- Prometheus Operator Objects enables the gathering of metrics from objects like Probes, PodMonitors, and
+# ServiceMonitors. Requires a destination that supports metrics.
+# To see the valid options, please see the
+# [Prometheus Operator Objects feature documentation](https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring/charts/feature-prometheus-operator-objects).
+# @default -- Disabled
+# @section -- Features - Prometheus Operator Objects
+prometheusOperatorObjects:
+  # -- Enable gathering metrics from Prometheus Operator Objects.
+  # @section -- Features - Prometheus Operator Objects
+  enabled: false
+
+#
+# Collectors (Alloy instances)
+#
+
+# An Alloy instance for collecting metrics.
+alloy-metrics:
+  # -- Deploy the Alloy instance for collecting metrics.
+  # @section -- Collectors - Alloy Metrics
+  enabled: true
+
+# An Alloy instance for data sources required to be deployed on a single replica.
+alloy-singleton:
+  # -- Deploy the Alloy instance for data sources required to be deployed on a single replica.
+  # @section -- Collectors - Alloy Singleton
+  enabled: false
+
+# An Alloy instance for collecting log data.
+alloy-logs:
+  # -- Deploy the Alloy instance for collecting log data.
+  # @section -- Collectors - Alloy Logs
+  enabled: true
+
+# -- Deploy additional manifest objects
+extraObjects: []
+# - apiVersion: external-secrets.io/v1beta1
+#   kind: ExternalSecret
+#   metadata:
+#     name: prometheus-secret
+#   spec:
+#     refreshInterval: 1h
+#     secretStoreRef:
+#       kind: SecretStore
+#       name: example
+#     target:
+#       template:
+#         data:
+#           prometheus_host: "{{ .Values.externalServices.prometheus.host }}"
+#           username: "{{`{{ .username }}`}}"
+#           password: "{{`{{ .password }}`}}"
+#     dataFrom:
+#     - extract:
+#         key: mysecret
+

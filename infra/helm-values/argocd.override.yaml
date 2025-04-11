@@ -1,0 +1,125 @@
+## Argo CD configuration
+## Ref: https://github.com/argoproj/argo-helm/commit/c358b5e71f8a9259d937c9bb1a6a34c9f1f478d8
+##
+
+## Globally shared configuration
+global:
+  # -- Secrets with credentials to pull images from a private registry
+  imagePullSecrets:
+    - name: regcred
+  domain: "${GLOBAL_DOMAIN}"
+
+repoServer:
+  image:
+    repository: "${IMAGE_REPOSITORY}"
+    tag: "${IMAGE_TAG}"
+  containerSecurityContext:
+    runAsNonRoot: false
+  # See https://github.com/jkroepke/helm-secrets/wiki/ArgoCD-Integration#multi-source-application-support-beta
+  env:
+    - name: HELM_SECRETS_WRAPPER_ENABLED
+      value: "true"
+    - name: HELM_SECRETS_VALUES_ALLOW_ABSOLUTE_PATH
+      value: "true"
+    # Set Gitlab CI variables as the secrets backend
+    - name: GITLAB_TOKEN
+      value: "${REPO_CREDS_PASSWORD}" # TODO
+
+## Argo Configs
+configs:
+  # General Argo CD configuration
+  ## Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/argocd-cm.yaml
+  cm:
+    helm.valuesFileSchemes: >-
+      secrets+gpg-import, secrets+gpg-import-kubernetes,
+      secrets+age-import, secrets+age-import-kubernetes,
+      secrets,secrets+literal,
+      https
+    # See https://argo-cd.readthedocs.io/en/latest/operator-manual/health/#way-1-define-a-custom-health-check-in-argocd-cm-configmap
+    resource.customizations: |
+      cert-manager.io/Certificate:
+        health.lua: |
+          hs = {}
+          if obj.status ~= nil then
+            if obj.status.conditions ~= nil then
+              for i, condition in ipairs(obj.status.conditions) do
+                if condition.type == "Ready" and condition.status == "False" then
+                  hs.status = "Degraded"
+                  hs.message = condition.message
+                  return hs
+                end
+                if condition.type == "Ready" and condition.status == "True" then
+                  hs.status = "Healthy"
+                  hs.message = condition.message
+                  return hs
+                end
+              end
+            end
+          end
+
+          hs.status = "Progressing"
+          hs.message = "Waiting for certificate"
+          return hs
+      networking.k8s.io/Ingress:
+        health.lua: |
+          hs = {}
+          hs.status = "Healthy"
+          return hs
+    oidc.config:
+      name: Keycloak
+      issuer: https://keycloak.example.com/realms/master
+      clientID: argocd
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+    repository:
+      credentialTemplates:
+        private-git:
+          url: "${REPO_CREDS_URL}"
+          name: "private"
+          type: "git"
+          username: "${REPO_CREDS_USERNAME}"
+          password: "${REPO_CREDS_PASSWORD}"
+
+  # Argo CD configuration parameters
+  ## Ref: https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/argocd-cmd-params-cm.yaml
+  params:
+    # -- Create the argocd-cmd-params-cm configmap
+    # If false, it is expected the configmap will be created by something else.
+    create: true
+
+    ## Server properties
+    # -- Run server without TLS
+    server.insecure: true
+
+  # SSH known hosts for Git repositories
+  ## Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/#ssh-known-host-public-keys
+  ssh:
+    # -- Additional known hosts for private repositories
+    extraHosts: "${GLOBAL_DOMAIN}"
+
+  # Argo CD sensitive data
+  # Ref: https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/#sensitive-data-and-sso-client-secrets
+  secret:
+    # -- Create the argocd-secret
+    createSecret: true
+    # -- Bcrypt hashed admin password
+    ## Argo expects the password in the secret to be bcrypt hashed. You can create this hash with
+    ## `htpasswd -nbBC 10 "" $ARGO_PWD | tr -d ':\n' | sed 's/$2y/$2a/'`
+    argocdServerAdminPassword: "${ARGOCD_SERVER_ADMIN_PASSWORD}"
+
+## Server
+server:
+  # -- Argo CD server name
+  name: server
+
+  # -- The number of server pods to run
+  replicas: 1
+
+  ingress:
+    # -- Enable an ingress resource for the Argo CD server
+    enabled: true
+    ingressClassName: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hostname: "${GLOBAL_DOMAIN}"
+    tls: true

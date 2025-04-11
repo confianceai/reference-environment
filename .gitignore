@@ -1,0 +1,25 @@
+.vscode/
+.idea/
+tmp/
+build/
+.terraform/
+*.tfvars
+*.bkp
+*.tfplan
+
+# Docusaurus
+node_modules
+
+# Production
+
+# Generated files
+.docusaurus
+.cache-loader
+
+# Misc
+.DS_Store
+.env.*
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

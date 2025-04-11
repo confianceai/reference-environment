@@ -1,0 +1,92 @@
+## Using default values from https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
+##
+grafana:
+  enabled: true
+  adminPassword: "${ADMIN_PASSWORD}"
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    labels: {}
+    hosts:
+      - ${GLOBAL_DOMAIN}
+    path: /
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - ${GLOBAL_DOMAIN}
+  grafana.ini:
+    # See https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/keycloak/
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak-OAuth
+      allow_sign_up: true
+      client_id: "${CLIENT_ID}"
+      client_secret: "${CLIENT_SECRET}"
+      scopes: openid email profile offline_access roles
+      email_attribute_path: email
+      login_attribute_path: username
+      name_attribute_path: full_name
+      auth_url: "${AUTH_URL}"
+      token_url: "${TOKEN_URL}"
+      api_url: "${API_URL}"
+      role_attribute_path: contains(roles[*], 'grafana-admin') && 'Admin' || 'Viewer'
+    server:
+      root_url: "https://${GLOBAL_DOMAIN}"
+  # Disable client-side validation of: "Sensitive key 'auth.generic_oauth.client_secret' should not be defined explicitly in values"
+  assertNoLeakedSecrets: false
+
+  # # To make Grafana persistent (Using Statefulset)
+  persistence:
+    enabled: true
+    type: sts
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+    finalizers:
+      - kubernetes.io/pvc-protection
+
+  sidecar:
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+      isDefaultDatasource: true
+
+      name: Prometheus
+      uid: prometheus
+
+      ## URL of prometheus datasource
+      ##
+      url: http://mimir-nginx.mimir.svc.cluster.local/prometheus
+    dashboards:
+      # See https://grafana.com/docs/grafana/latest/administration/provisioning/#making-changes-to-a-provisioned-dashboard
+      provider:
+        allowUiUpdates: true
+# ## Manages Prometheus and Alertmanager components
+# ##
+prometheusOperator:
+  enabled: true
+
+# ## Already enabled with Alloy
+# ##
+nodeExporter:
+  enabled: true
+
+# ## Component scraping kube state metrics, already enabled with Alloy
+# ##
+kubeStateMetrics:
+  enabled: true
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+        selector: {}

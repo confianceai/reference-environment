@@ -1,0 +1,29 @@
+global:
+  imagePullSecrets:
+    - regcred
+
+auth:
+  ## @param auth.enablePostgresUser Assign a password to the "postgres" admin user. Otherwise, remote access will be blocked for this user
+  ##
+  enablePostgresUser: true
+  ## @param auth.postgresPassword Password for the "postgres" admin user. Ignored if `auth.existingSecret` is provided
+  ##
+  postgresPassword: ""
+  ## @param auth.username Name for a custom user to create
+  ##
+  username: <to be defined>
+  ## @param auth.password Password for the custom user to create. Ignored if `auth.existingSecret` is provided
+  ##
+  password: <to be defined>
+
+primary:
+  ## PostgreSQL Primary resource requests and limits
+  ## ref: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+  ## @param primary.resourcesPreset Set container resources according to one common preset (allowed values: none, nano, micro, small, medium, large, xlarge, 2xlarge). This is ignored if primary.resources is set (primary.resources is recommended for production).
+  ## More information: https://github.com/bitnami/charts/blob/main/bitnami/common/templates/_resources.tpl#L15
+  ##
+  resourcesPreset: "nano"
+  ## PostgreSQL Primary persistence configuration
+  ##
+  persistence:
+    size: 20Gi

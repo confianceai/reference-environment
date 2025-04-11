@@ -1,0 +1,40 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: minio
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - namespace: "minio"
+            project: "prod"
+            branch: "main"
+  template:
+    metadata:
+      name: "minio-{{ project }}"
+      namespace: argocd
+    spec:
+      project: "{{ project }}"
+      syncPolicy:
+        automated:
+          prune: true
+          allowEmpty: true
+        syncOptions:
+          - CreateNamespace=true
+      sources:
+        - chart: minio
+          repoURL: https://charts.min.io
+          targetRevision: 5.4.0 # Version of the chart
+          helm:
+            releaseName: minio
+            valueFiles:
+              - $values/components/minio-chart/values.ref.yaml # One global values file
+              - $values/components/minio-chart/values.{{ project }}.yaml # One values file per environment, potentially containing secrets references with vals
+        - repoURL: "https://github.com/confianceai/reference-environment.git" # Do not forget '.git'
+          targetRevision: "{{ branch }}" # Git repository branch
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ namespace }}"

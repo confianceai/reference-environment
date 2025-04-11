@@ -1,0 +1,45 @@
+image:
+  repository: <to be defined>
+
+oauth2:
+  global:
+    imagePullSecrets:
+      - name: regcred
+  # Oauth client configuration specifics
+  config:
+    # OAuth client ID
+    clientID: "docusaurus-shared"
+    # OAuth client secret
+    clientSecret: <to be defined>
+    cookieSecret: <to be defined>
+    configFile: |-
+      provider = "keycloak-oidc"
+      client_id = "docusaurus-shared"
+      client_secret = <to be defined>
+      redirect_url = <to be defined>
+      oidc_issuer_url = <to be defined>
+      code_challenge_method = "S256"
+      email_domains = [ "*" ]
+      upstreams = ["http://docusaurus-chart:3000"]
+
+  ingress:
+    enabled: true
+    className: nginx
+    pathType: ImplementationSpecific
+    hosts:
+      - docs.etf-foundation.org
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+    tls:
+      - hosts:
+          - <to be defined>
+        secretName: docusaurus-tls
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 20Mi
+    limits:
+      cpu: 50m
+      memory: 50Mi

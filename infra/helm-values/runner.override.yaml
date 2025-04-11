@@ -1,0 +1,71 @@
+gitlabUrl: ""
+
+## Specifying ImagePullSecrets on a Pod
+## Kubernetes supports specifying container image registry keys on a Pod.
+## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+##
+imagePullSecrets:
+  - name: "regcred"
+
+## Configure securitycontext valid for the whole pod
+## ref: http://kubernetes.io/docs/user-guide/security-context/
+##
+rbac:
+  create: true
+  clusterWideAccess: true
+  rules:
+    - apiGroups: [ "*" ]
+      resources: [ "*" ]
+      verbs: [ "*" ]
+
+serviceAccount:
+  create: true
+  name: gitlab-runner
+## Configuration for the Pods that the runner launches for each new job
+##
+runners:
+  # runner configuration, where the multi line string is evaluated as
+  # template so you can specify helm values inside of it.
+  #
+  # tpl: https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function
+  # runner configuration: https://docs.gitlab.com/runner/configuration/advanced-configuration.html
+  config: |
+    [[runners]]
+      [runners.kubernetes]
+        namespace = "{{.Release.Namespace}}"
+        service_account = "gitlab-runner"
+        image = "alpine"
+        privileged = true
+        image_pull_secrets = ["regcred"]
+        cpu_request = "100m"
+        cpu_limit = "1"
+
+  ## Specify the name for the runner.
+  ##
+  name: ""
+
+  ## DEPRECATED: Specify the tags associated with the runner. Comma-separated list of tags.
+  ##
+  ## ref: https://docs.gitlab.com/ee/ci/runners/new_creation_workflow.html
+  ##
+  tags: ""
+
+  ## DEPRECATED: Specify if jobs without tags should be run.
+  ##
+  ## ref: https://docs.gitlab.com/ee/ci/runners/new_creation_workflow.html
+  ##
+  runUntagged: true
+
+## Configure resource requests and limits
+## ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+##
+resources:
+  { }
+# limits:
+#   memory: 256Mi
+#   cpu: 200m
+#   ephemeral-storage: 512Mi
+# requests:
+#   memory: 128Mi
+#   cpu: 100m
+#   ephemeral-storage: 256Mi

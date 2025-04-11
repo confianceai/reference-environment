@@ -1,0 +1,182 @@
+images:
+  pullSecrets:
+    - name: regcred
+
+# -- Restrict Argo to operate only in a single namespace (the namespace of the
+# Helm release) by apply Roles and RoleBindings instead of the Cluster
+# equivalents, and start workflow-controller with the --namespaced flag. Use it
+# in clusters with strict access policy.
+singleNamespace: false
+
+workflow:
+  serviceAccount:
+    # -- Specifies whether a service account should be created
+    create: true
+
+controller:
+  # -- parallelism dictates how many workflows can be running at the same time
+  parallelism: 10
+
+  # -- enable Workflow Archive to store the status of workflows. Postgres and MySQL (>= 5.7.8) are available.
+  ## Ref: https://argo-workflows.readthedocs.io/en/stable/workflow-archive/
+  persistence:
+    archive: true
+    archiveTTL: 60d # Workflows will be deleted after 60 days
+    postgresql:
+      host: argo-workflows-pg-postgresql # TODO
+      port: 5432
+      database: postgres
+      tableName: argo_workflows
+      userNameSecret:
+        name: argo-postgres-config
+        key: username
+      passwordSecret:
+        name: argo-postgres-config
+        key: password
+      ssl: false
+      sslMode: disable
+
+  links:
+    # Adds a button to the workflow page
+    - name: Workflow logs
+      scope: pod-logs
+      url: https://monitoring.etf-foundation.org/a/grafana-lokiexplore-app/explore?var-filters=namespace%7C%3D%7C${metadata.namespace}&var-filters=pod%7C%3D%7C${metadata.name}&from=${status.startedAt}&to=${status.finishedAt}&timezone=browser
+
+  columns:
+    # Adds a column to the Workflow List View
+    - # The name of this column, e.g., "Workflow Completed".
+      name: Workflow Completed
+      # The type of this column, "label" or "annotation".
+      type: label
+      # The key of the label or annotation, e.g., "workflows.argoproj.io/completed".
+      key: workflows.argoproj.io/completed
+
+  nodeEvents:
+    enabled: false
+  # -- Specify all namespaces where this workflow controller instance will manage
+  # workflows. This controls where the service account and RBAC resources will
+  # be created. Only valid when singleNamespace is false.
+  workflowNamespaces:
+    - shared
+
+  # -- Resource limits and requests for the controller
+  resources: {}
+
+  # -- Extra environment variables to provide to the controller container
+  extraEnv: []
+  # - name: FOO
+  #   value: "bar"
+
+  # -- Assign custom [affinity] rules
+  affinity: {}
+
+# executor controls how the init and wait container should be customized
+executor:
+  # -- Resource limits and requests for the Workflow Executors
+  resources: {}
+
+server:
+  # -- Deploy the Argo Server
+  enabled: true
+  # -- Resource limits and requests for the server
+  resources: {}
+  # -- Assign custom [affinity] rules
+  affinity: {}
+
+  # -- A list of supported authentication modes. Available values are `server`, `client`, or `sso`. If you provide sso, please configure `.Values.server.sso` as well.
+  ## Ref: https://argo-workflows.readthedocs.io/en/stable/argo-server-auth-mode/
+  authModes:
+    - sso
+
+  ## Ingress configuration.
+  # ref: https://kubernetes.io/docs/user-guide/ingress/
+  ingress:
+    # -- Enable an ingress resource
+    enabled: true
+    # -- Additional ingress annotations
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    # -- Defines which ingress controller will implement the resource
+    ingressClassName: "nginx"
+    # -- List of ingress hosts
+    hosts:
+      - workflows.etf-foundation.org
+    tls:
+      - secretName: argoworkflows-tls
+        hosts:
+          - workflows.etf-foundation.org
+
+  # SSO configuration when SSO is specified as a server auth mode.
+  sso:
+    # -- Create SSO configuration. If you set `true` , please also set `.Values.server.authMode` as `sso`.
+    enabled: true
+    # -- The root URL of the OIDC identity provider
+    issuer: https://auth.etf-foundation.org/realms/etf
+    clientId:
+      # -- Name of secret to retrieve the app OIDC client ID
+      name: argo-server-sso
+      # -- Key of secret to retrieve the app OIDC client ID
+      key: client-id
+    clientSecret:
+      # -- Name of a secret to retrieve the app OIDC client secret
+      name: argo-server-sso
+      # -- Key of a secret to retrieve the app OIDC client secret
+      key: client-secret
+    # -- The OIDC redirect URL. Should be in the form <argo-root-url>/oauth2/callback.
+    redirectUrl: "https://workflows.etf-foundation.org/oauth2/callback"
+    rbac:
+      # -- Adds ServiceAccount Policy to server (Cluster)Role.
+      enabled: true
+      # -- Whitelist to allow server to fetch Secrets
+      ## When present, restricts secrets the server can read to a given list.
+      ## You can use it to restrict the server to only be able to access the
+      ## service account token secrets that are associated with service accounts
+      ## used for authorization.
+      secretWhitelist: []
+    # -- Scopes requested from the SSO ID provider
+    ## The 'groups' scope requests group membership information, which is usually used for authorization decisions.
+    scopes:
+      - groups
+    # - groups
+    # -- Define how long your login is valid for (in hours)
+    ## If omitted, defaults to 10h.
+    sessionExpiry: ""
+    # -- Alternate root URLs that can be included for some OIDC providers
+    issuerAlias: ""
+    # -- Override claim name for OIDC groups
+    customGroupClaimName: ""
+    # -- Specify the user info endpoint that contains the groups claim
+    ## Configure this if your OIDC provider provides groups information only using the user-info endpoint (e.g. Okta)
+    userInfoPath: ""
+    # -- Skip TLS verification for the HTTP client
+    insecureSkipVerify: false
+    # -- Filter the groups returned by the OIDC provider
+    ## A logical "OR" is used between each regex in the list
+    filterGroupsRegex: []
+    # - ".*argo-wf.*"
+    # - ".*argo-workflow.*"
+
+# -- Use static credentials for S3 (eg. when not using AWS IRSA)
+useStaticCredentials: true
+artifactRepository:
+  # TODO if we want to share the same AR to the users
+  # -- Store artifact in a S3-compliant object store
+  # @default -- See [values.yaml]
+  s3:
+    # Note the `key` attribute is not the actual secret, it's the PATH to
+    # the contents in the associated secret, as defined by the `name` attribute.
+    accessKeySecret:
+      name: "workflows-minio"
+      key: accesskey
+    secretKeySecret:
+      name: "workflows-minio"
+      key: secretkey
+    # insecure will disable TLS. Primarily used for minio installs not configured with TLS
+    insecure: false
+    bucket: workflows
+    endpoint:
+    region:
+    roleARN:
+    useSDKCreds: true
+    encryptionOptions:
+      enableEncryption: true

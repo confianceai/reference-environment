@@ -1,0 +1,203 @@
+imagePullSecrets:
+  - name: "regcred"
+
+## minio mode, i.e. standalone or distributed
+mode: distributed ## other supported values are "standalone"
+
+## Typically the deployment/statefulset includes checksums of secrets/config,
+## So that when these change on a subsequent helm install, the deployment/statefulset
+## is restarted. This can result in unnecessary restarts under GitOps tooling such as
+## flux, so set to "true" to disable this behaviour.
+ignoreChartChecksums: true
+
+## Set default rootUser, rootPassword
+## rootUser and rootPassword is generated when not set
+## Distributed MinIO ref: https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html
+##
+rootUser: <to be defined>
+rootPassword: <to be defined>
+
+# Number of drives attached to a node
+drivesPerNode: 4
+# Number of MinIO containers running
+replicas: 4
+# Number of expanded MinIO clusters
+pools: 1
+
+## Enable persistence using Persistent Volume Claims
+## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+##
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 30Gi
+
+## Configure Ingress based on the documentation here: https://kubernetes.io/docs/concepts/services-networking/ingress/
+##
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - <to be defined>
+  tls:
+    - secretName: minio-tenant-tls
+      hosts:
+        - <to be defined>
+
+consoleIngress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - <to be defined>
+  tls:
+    - secretName: console-minio-tenant-tls
+      hosts:
+        - <to be defined>
+
+## Configure resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+##
+resources:
+  requests:
+    memory: 16Gi
+    cpu: 5
+  limits:
+    memory: 32Gi
+    cpu: 10
+
+## List of policies to be created after minio install
+##
+## In addition to default policies [readonly|readwrite|writeonly|consoleAdmin|diagnostics]
+## you can define additional policies with custom supported actions and resources
+policies:
+  ## workflowsWrite policy grants creation or deletion of buckets with name workflows.
+  ## In addition, grants objects write permissions on bucket workflows.
+  - name: workflowsWrite
+    statements:
+      - effect: Allow
+        resources:
+          - "arn:aws:s3:::workflows/*"
+        actions:
+          - "s3:AbortMultipartUpload"
+          - "s3:GetObject"
+          - "s3:DeleteObject"
+          - "s3:PutObject"
+          - "s3:ListMultipartUploadParts"
+      - resources:
+          - "arn:aws:s3:::workflows"
+        actions:
+          - "s3:CreateBucket"
+          - "s3:DeleteBucket"
+          - "s3:GetBucketLocation"
+          - "s3:ListBucket"
+          - "s3:ListBucketMultipartUploads"
+  ## allows users to create files and folders in a "public" bucket, create new buckets, and prevents them from deleting files or buckets that were not created by them
+  - name: userPolicy
+    statements:
+      - effect: Allow
+        resources:
+          - "arn:aws:s3:::public"
+        actions:
+          - "s3:ListBucket"
+          - "s3:GetBucketLocation"
+          - "s3:ListBucketMultipartUploads"
+      - effect: Allow
+        resources:
+          - "arn:aws:s3:::public/*"
+        actions:
+          - "s3:AbortMultipartUpload"
+          - "s3:DeleteObject"
+          - "s3:DeleteObjectVersion"
+          - "s3:GetObject"
+          - "s3:GetObjectVersion"
+          - "s3:ListMultipartUploadParts"
+          - "s3:PutObject"
+        condition:
+          StringEquals:
+            "s3:x-amz-acl": "private"
+      - effect: Allow
+        resources:
+          - "*"
+        actions:
+          - "s3:CreateBucket"
+          - "s3:ListAllMyBuckets"
+      - effect: Deny
+        resources:
+          - "*"
+        actions:
+          - "s3:DeleteBucket"
+          - "s3:DeleteObject"
+          - "s3:DeleteObjectVersion"
+        condition:
+          StringNotEquals:
+            "aws:username": "${aws:username}"
+
+## readonlyexamplepolicy policy grants access to buckets with name starting with example.
+## In addition, grants objects read permissions on buckets starting with example.
+# - name: readonlyexamplepolicy
+#   statements:
+#     - resources:
+#         - 'arn:aws:s3:::example*/*'
+#       actions:
+#         - "s3:GetObject"
+#     - resources:
+#         - 'arn:aws:s3:::example*'
+#       actions:
+#         - "s3:GetBucketLocation"
+#         - "s3:ListBucket"
+#         - "s3:ListBucketMultipartUploads"
+## conditionsexample policy creates all access to example bucket with aws:username="johndoe" and source ip range 10.0.0.0/8 and 192.168.0.0/24 only
+# - name: conditionsexample
+#   statements:
+#     - resources:
+#       - 'arn:aws:s3:::example/*'
+#       actions:
+#       - 's3:*'
+#       conditions:
+#         - StringEquals: '"aws:username": "johndoe"'
+#         - IpAddress: |
+#             "aws:SourceIp": [
+#               "10.0.0.0/8",
+#               "192.168.0.0/24"
+#             ]
+#
+
+users:
+  ## Username, password and policy to be assigned to the user
+  ## Default policies are [readonly|readwrite|writeonly|consoleAdmin|diagnostics]
+  ## Add new policies as explained here https://min.io/docs/minio/kubernetes/upstream/administration/identity-access-management.html#access-management
+  ## NOTE: this will fail if LDAP is enabled in your MinIO deployment
+  ## make sure to disable this if you are using LDAP.
+  - accessKey: <to be defined>
+    secretKey: <to be defined>
+    policy: consoleAdmin
+
+buckets:
+  ## Bucket for shared Argo Workflows artifacts
+  - name: workflows
+    policy: public
+    purge: false
+    versioning: false
+    objectlocking: false
+  ## Shared bucket
+  - name: public
+    policy: public
+    purge: false
+    versioning: false
+    objectlocking: false
+
+## OpenID Identity Management
+## The following section documents environment variables for enabling external identity management using an OpenID Connect (OIDC)-compatible provider.
+## See https://min.io/docs/minio/linux/operations/external-iam/configure-openid-external-identity-management.html for a tutorial on using these variables.
+oidc:
+  enabled: true
+  configUrl: <to be defined>
+  clientId: "minio-shared"
+  clientSecret: <to be defined>
+  claimName: "policy"
+  scopes: "openid,profile,email"
+  redirectUri: <to be defined>

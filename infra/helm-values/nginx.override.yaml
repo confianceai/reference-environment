@@ -1,0 +1,10 @@
+## Default 404 backend
+##
+defaultbackend:
+  resources:
+    requests:
+      cpu: 1m
+      memory: 10Mi
+    limits:
+      cpu: 5m
+      memory: 20Mi

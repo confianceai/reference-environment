@@ -1,0 +1,37 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: docusaurus
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - namespace: "shared"
+            project: "prod"
+            branch: "main"
+  template:
+    metadata:
+      name: "docusaurus-{{ project }}"
+      namespace: argocd
+    spec:
+      project: "{{ project }}"
+      syncPolicy:
+        automated:
+          prune: true
+          allowEmpty: true
+        syncOptions:
+          - CreateNamespace=true
+      sources:
+        - repoURL: "https://github.com/confianceai/reference-environment.git" # Do not forget '.git'
+          path: components/docusaurus-chart
+          targetRevision: "{{ branch }}" # Git repository branch
+          helm:
+            releaseName: docusaurus
+            valueFiles:
+              - values.yaml # One global values file
+              - values.{{ project }}.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ namespace }}"

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: docusaurus-chart
+description: Docusaurus EC1 Helm chart for Kubernetes
+
+type: application
+
+version: 1.0.0
+
+# This is the version number of the application being deployed.
+appVersion: "0.1.0"
+
+dependencies:
+  - name: oauth2-proxy
+    alias: oauth2
+    version: "7.10.2"
+    repository: https://oauth2-proxy.github.io/manifests

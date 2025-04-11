@@ -1,0 +1,44 @@
+# This is a ClusterWorkflowTemplate for Argo Workflows, which defines a reusable workflow template at the cluster level.
+
+# apiVersion specifies the version of the Argo Workflows API being used.
+apiVersion: argoproj.io/v1alpha1
+
+# kind specifies that this is a ClusterWorkflowTemplate resource.
+kind: ClusterWorkflowTemplate
+
+# metadata contains the metadata for the template, including the generateName which is used to generate a unique name for each workflow instance.
+metadata:
+  generateName: gpu-example-
+
+# spec contains the specification of the workflow template.
+spec:
+  # entrypoint defines the main template to be executed.
+  entrypoint: main
+
+  # templates is a list of templates that can be used in the workflow.
+  templates:
+    # The main template which defines the steps of the workflow.
+    - name: main
+      steps:
+        # The first step of the workflow, which uses the gpu-task template.
+        - - name: step1
+            template: gpu-task
+
+    # The gpu-task template which defines a container to run the nvidia-smi command.
+    - name: gpu-task
+      container:
+        # The Docker image to use for the container.
+        image: nvidia/cuda:10.0-base
+        # The command to run inside the container.
+        command: [sh, -c]
+        # The arguments to pass to the command.
+        args: ["nvidia-smi"]
+        # The resources required for the container, here we aks for a GPU to be available in the workflow's Pod.
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+
+  # serviceAccountName specifies the Kubernetes service account to use for the workflow.
+  serviceAccountName: etf-argo-workflows-dev-user
+  # namespace specifies the Kubernetes namespace in which the workflow will run.
+  namespace: shared
